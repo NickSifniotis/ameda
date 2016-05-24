@@ -1,22 +1,22 @@
 package com.example.nsifniotis.testapplicationone;
 
-import android.app.AlertDialog;
+
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
-import android.content.BroadcastReceiver;
-import android.content.Context;
 import android.content.Intent;
-import android.content.IntentFilter;
-import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
+import android.support.v7.app.AppCompatActivity;
 import android.view.View;
-import android.widget.ArrayAdapter;
+import android.widget.AdapterView;
+import android.widget.EditText;
 import android.widget.ListView;
 import android.widget.TextView;
 
-import java.util.Set;
+import java.util.ArrayList;
+
 
 public class TestActivity extends AppCompatActivity {
+    private static BluetoothDevice AMEDA = null;
 
     private static int REQUEST_ENABLE_BT = 1;
     private static String state;
@@ -28,6 +28,7 @@ public class TestActivity extends AppCompatActivity {
         setContentView(R.layout.activity_test);
 
         status_bar = (TextView)findViewById(R.id.txtPairs);
+        device_list(false);
     }
 
     @Override
@@ -37,7 +38,7 @@ public class TestActivity extends AppCompatActivity {
         state = savedInstanceState.getString("state");
 
         if (state == "conecting")
-            bluetooth(this.findViewById(R.id.bluetooth_search));
+            bluetooth(this.findViewById(R.id.txtPairs));
     }
 
     @Override
@@ -54,6 +55,7 @@ public class TestActivity extends AppCompatActivity {
      */
     public void bluetooth(View view)
     {
+        device_list(true);
         state = "connecting";
 
         BluetoothAdapter adaptor = BluetoothAdapter.getDefaultAdapter();
@@ -73,35 +75,44 @@ public class TestActivity extends AppCompatActivity {
         }
         else
         {
-            final ArrayAdapter<String> arrayAdaptor = new ArrayAdapter<String>(this, R.layout.activity_test);
-            ListView listView = (ListView)findViewById(R.id.dataList);
-            listView.setAdapter(arrayAdaptor);
+            //final ArrayAdapter<String> arrayAdaptor = new ArrayAdapter<String>(this, R.layout.paired_device);
 
-            Set<BluetoothDevice> pairedDevices = adaptor.getBondedDevices();
+            ArrayList<BluetoothDevice> pairedDevices = new ArrayList(adaptor.getBondedDevices());
 
             // if we have paired devices, list them
-            if (pairedDevices.size() > 0)
-                for (BluetoothDevice device : pairedDevices)
-                    arrayAdaptor.add (device.getName() + "\n" + device.getAddress());
-            else
-                status_bar.setText("Status: Zero paired devices found.");
+            if (pairedDevices.size() == 0)
+            {
+                status_bar.setText("Zero paired devices found. Try again once you've paired something.");
+                return;
+            }
 
-            // begin discovery process
-            final BroadcastReceiver receiver = new BroadcastReceiver() {
-                @Override
-                public void onReceive(Context context, Intent intent) {
-                    String action = intent.getAction();
+            PairedDeviceAdaptor pd_adaptor = new PairedDeviceAdaptor(this, R.layout.paired_device, pairedDevices);
+            final ListView listView = (ListView)findViewById(R.id.dataList);
+            listView.setAdapter(pd_adaptor);
 
-                    if (BluetoothDevice.ACTION_FOUND.equals (action)) {
-                        BluetoothDevice device = intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE);
-                        arrayAdaptor.add (device.getName() + "\n" + device.getAddress());
-                    }
+            listView.setOnItemClickListener(new AdapterView.OnItemClickListener() {
+                public void onItemClick(AdapterView<?> myAdapter, View myView, int myItemInt, long mylng) {
+                    AMEDA = (BluetoothDevice) (listView.getItemAtPosition(myItemInt));
+
+                    status_bar.setText("Selected device " + AMEDA.getName());
                 }
-            };
-
-            IntentFilter filter = new IntentFilter (BluetoothDevice.ACTION_FOUND);
-            registerReceiver(receiver, filter);
+            });
         }
+    }
+
+
+    /**
+     * Toggle the list of paired bluetooth devices on or off.
+     *
+     * @param show
+     */
+    private void device_list(boolean show)
+    {
+        ListView viewer = (ListView) findViewById(R.id.dataList);
+        if (show)
+            viewer.setVisibility(View.VISIBLE);
+        else
+            viewer.setVisibility(View.GONE);
     }
 
 
@@ -112,6 +123,178 @@ public class TestActivity extends AppCompatActivity {
      */
     public void ping(View view)
     {
+        device_list(false);
 
+        try {
+            TransmitString("HELLO");
+        }
+        catch (Exception e)
+        {
+            // there's no need to do anything here since the command is correct.
+        }
+    }
+
+
+    /**
+     * Event handler for the 'go home' button click.
+     *
+     * @param view
+     */
+    public void go_home_handler (View view)
+    {
+        device_list(false);
+        GoHome();
+    }
+
+
+    /**
+     * Handler for the AMEDA 'move to position' command button.
+     *
+     * @param view
+     */
+    public void move_to_pos_handler (View view)
+    {
+        device_list(false);
+        EditText textor = ((EditText)findViewById(R.id.move_to_number_txt));
+        String pos_val = "0";
+        if (textor != null && textor.getText().length() > 0)
+            pos_val = textor.getText().toString();
+
+        MoveToPosition(Integer.parseInt(pos_val));
+    }
+
+
+    /**
+     * Handler for the 'calibrate' command button.
+     *
+     * @param view
+     */
+    public void calibrate_btn_handler(View view)
+    {
+        device_list(false);
+        Calibrate();
+    }
+
+
+    /**
+     * Perform a horizontal calibration on the AMEDA
+     */
+    private void Calibrate()
+    {
+        try
+        {
+            TransmitString ("CALHZ");
+        }
+        catch (Exception e)
+        {
+            //
+        }
+    }
+
+
+    /**
+     * Resets the AMEDA back to the home position.
+     */
+    private void GoHome()
+    {
+        try
+        {
+            TransmitString("GOHME");
+        }
+        catch (Exception e)
+        {
+            // my code is not broken
+        }
+    }
+
+
+    /**
+     * Instructs the AMEDA to move to a new position / angle.
+     *
+     * @param pos
+     */
+    private void MoveToPosition (int pos)
+    {
+        if (pos >= 0 && pos <= 9)
+        {
+            try
+            {
+                TransmitString("GOTO" + pos);
+            }
+            catch (Exception e)
+            {
+                // my commands are always correct.
+            }
+        }
+        else
+            status_bar.setText("Invalid command, cannot move device to position " + pos);
+    }
+
+
+    /**
+     * Transmits the given instruction string to the AMEDA device.
+     *
+     * Converts the string to an 8-byte char message.
+     *
+     * @param str
+     */
+    private void TransmitString (String str) throws Exception
+    {
+        if (str.length() != 5)
+            throw new Exception ("Invalid command sent to AMEDA.");
+
+        byte [] transmission = new byte[8];
+        transmission[0] = (byte)'[';
+
+        int checksum = 0;
+        for (int i = 0; i < 5; i ++)
+        {
+            checksum += (int) str.charAt(i);
+            transmission[i + 1] = (byte) str.charAt(i);
+        }
+
+        checksum %= 256;
+        transmission[6] = (byte)checksum;
+        transmission[7] = (byte)']';
+
+        Transmit (transmission);
+    }
+
+    /**
+     * Sends the message in the char array to the AMEDA device, if a connection exists.
+     *
+     * @param message
+     */
+    private void Transmit (byte [] message)
+    {
+        if (AMEDA == null)
+        {
+            status_bar.setText("Unable to transmit - no AMEDA device selected");
+            return;
+        }
+
+        
+        // make sure that we are receiving the correct commands o transmit
+        // purely for testing purposes.
+
+        String output = "";
+        for (int i = 0; i < 6; i ++)
+            output += (char)message[i];
+
+        output += ":" + Integer.toString(message[6]) + ":";
+        output += (char)message[7];
+
+        status_bar.setText(output);
+    }
+
+
+    private byte[] Receive()
+    {
+        // blocking call until 8 bytes are received from the AMEDA
+        // get the bytes, and return them.
+
+        byte[] res = new byte [8];
+
+        return res;
     }
 }
