@@ -3,21 +3,26 @@ package com.example.nsifniotis.testapplicationone;
 
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
+import android.bluetooth.BluetoothSocket;
 import android.content.Intent;
 import android.os.Bundle;
+import android.os.ParcelUuid;
 import android.support.v7.app.AppCompatActivity;
+import android.util.Log;
 import android.view.View;
 import android.widget.AdapterView;
 import android.widget.EditText;
 import android.widget.ListView;
 import android.widget.TextView;
+import android.widget.Toast;
 
+import java.io.OutputStream;
+import java.lang.reflect.Method;
 import java.util.ArrayList;
+import java.util.UUID;
 
 
 public class TestActivity extends AppCompatActivity {
-    private static BluetoothDevice AMEDA = null;
-
     private static int REQUEST_ENABLE_BT = 1;
     private static String state;
     private static TextView status_bar;
@@ -92,9 +97,9 @@ public class TestActivity extends AppCompatActivity {
 
             listView.setOnItemClickListener(new AdapterView.OnItemClickListener() {
                 public void onItemClick(AdapterView<?> myAdapter, View myView, int myItemInt, long mylng) {
-                    AMEDA = (BluetoothDevice) (listView.getItemAtPosition(myItemInt));
+                    AMEDA.SetDevice((BluetoothDevice)(listView.getItemAtPosition(myItemInt)));
 
-                    status_bar.setText("Selected device " + AMEDA.getName());
+                    status_bar.setText("Selected device " + AMEDA.device.getName());
                 }
             });
         }
@@ -125,8 +130,10 @@ public class TestActivity extends AppCompatActivity {
     {
         device_list(false);
 
-        try {
+        try
+        {
             TransmitString("HELLO");
+            byte [] response = Receive();
         }
         catch (Exception e)
         {
@@ -175,7 +182,6 @@ public class TestActivity extends AppCompatActivity {
         Calibrate();
     }
 
-
     /**
      * Perform a horizontal calibration on the AMEDA
      */
@@ -184,6 +190,8 @@ public class TestActivity extends AppCompatActivity {
         try
         {
             TransmitString ("CALHZ");
+
+            byte [] response = Receive();
         }
         catch (Exception e)
         {
@@ -200,6 +208,7 @@ public class TestActivity extends AppCompatActivity {
         try
         {
             TransmitString("GOHME");
+            byte [] response = Receive();
         }
         catch (Exception e)
         {
@@ -260,6 +269,7 @@ public class TestActivity extends AppCompatActivity {
         Transmit (transmission);
     }
 
+
     /**
      * Sends the message in the char array to the AMEDA device, if a connection exists.
      *
@@ -267,13 +277,79 @@ public class TestActivity extends AppCompatActivity {
      */
     private void Transmit (byte [] message)
     {
-        if (AMEDA == null)
+        if (!AMEDA.IsDeviced())
         {
             status_bar.setText("Unable to transmit - no AMEDA device selected");
             return;
         }
 
-        
+        if (!AMEDA.IsConnected())
+        {
+            AMEDA.Connect(this);
+        }
+
+        if (AMEDA.IsConnected())
+        {
+            try
+            {
+                AMEDA.ostream.write(message);
+            }
+            catch (Exception e)
+            {
+                Toast toast = Toast.makeText(this, "Unable to complete transmission: " + e.getMessage(), Toast.LENGTH_LONG);
+                toast.show();
+            }
+        }
+
+        DisplayMessage(message);
+    }
+
+
+    private byte[] Receive()
+    {
+        // blocking call until 8 bytes are received from the AMEDA
+        // get the bytes, and return them.
+
+        if (!AMEDA.IsDeviced())
+        {
+            status_bar.setText("Unable to transmit - no AMEDA device selected");
+            return null;
+        }
+
+        if (!AMEDA.IsConnected())
+        {
+            AMEDA.Connect(this);
+        }
+
+        byte[] res = new byte [8];
+
+        boolean finished = false;
+        int counter = 0;
+
+        try
+        {
+            while (counter < 8)
+            {
+                int byteCount = AMEDA.istream.available();
+                if (byteCount > 0)
+                {
+                    int rawByte = AMEDA.istream.read();
+                    res[counter] = (byte) rawByte;
+                    counter ++;
+                }
+            }
+        }
+        catch (Exception e)
+        {
+
+        }
+
+        DisplayMessage(res);
+        return res;
+    }
+
+    private void DisplayMessage(byte [] message)
+    {
         // make sure that we are receiving the correct commands o transmit
         // purely for testing purposes.
 
@@ -285,16 +361,5 @@ public class TestActivity extends AppCompatActivity {
         output += (char)message[7];
 
         status_bar.setText(output);
-    }
-
-
-    private byte[] Receive()
-    {
-        // blocking call until 8 bytes are received from the AMEDA
-        // get the bytes, and return them.
-
-        byte[] res = new byte [8];
-
-        return res;
     }
 }
