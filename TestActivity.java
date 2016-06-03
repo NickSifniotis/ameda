@@ -98,6 +98,7 @@ public class TestActivity extends AppCompatActivity {
             listView.setOnItemClickListener(new AdapterView.OnItemClickListener() {
                 public void onItemClick(AdapterView<?> myAdapter, View myView, int myItemInt, long mylng) {
                     AMEDA.SetDevice((BluetoothDevice)(listView.getItemAtPosition(myItemInt)));
+                    AMEDA.Connect(myView.getContext());
 
                     status_bar.setText("Selected device " + AMEDA.device.getName());
                 }
@@ -133,7 +134,7 @@ public class TestActivity extends AppCompatActivity {
         try
         {
             TransmitString("HELLO");
-            byte [] response = Receive();
+            //byte [] response = Receive();
         }
         catch (Exception e)
         {
@@ -252,114 +253,103 @@ public class TestActivity extends AppCompatActivity {
         if (str.length() != 5)
             throw new Exception ("Invalid command sent to AMEDA.");
 
-        byte [] transmission = new byte[8];
-        transmission[0] = (byte)'[';
-
         int checksum = 0;
         for (int i = 0; i < 5; i ++)
-        {
             checksum += (int) str.charAt(i);
-            transmission[i + 1] = (byte) str.charAt(i);
-        }
 
         checksum %= 256;
-        transmission[6] = (byte)checksum;
-        transmission[7] = (byte)']';
 
-        Transmit (transmission);
+        String transmission = "[" + str + (char)(checksum) + "]";
+        DisplayMessage(transmission);
+        AMEDA.WriteCommand(transmission);
     }
 
 
     /**
      * Sends the message in the char array to the AMEDA device, if a connection exists.
      *
-     * @param message
+     * @param
      */
-    private void Transmit (byte [] message)
-    {
-        if (!AMEDA.IsDeviced())
-        {
-            status_bar.setText("Unable to transmit - no AMEDA device selected");
-            return;
-        }
-
-        if (!AMEDA.IsConnected())
-        {
-            AMEDA.Connect(this);
-        }
-
-        if (AMEDA.IsConnected())
-        {
-            try
-            {
-                AMEDA.ostream.write(message);
-            }
-            catch (Exception e)
-            {
-                Toast toast = Toast.makeText(this, "Unable to complete transmission: " + e.getMessage(), Toast.LENGTH_LONG);
-                toast.show();
-            }
-        }
-
-        DisplayMessage(message);
-    }
+//    private void Transmit (byte [] message)
+//    {
+//        if (!AMEDA.IsDeviced())
+//        {
+//            status_bar.setText("Unable to transmit - no AMEDA device selected");
+//            return;
+//        }
+//
+//        if (!AMEDA.IsConnected())
+//        {
+//            AMEDA.Connect(this);
+//        }
+//
+//        if (AMEDA.IsConnected())
+//        {
+//            try
+//            {
+//                AMEDA.ostream.write(message);
+//                AMEDA.ostream.flush();
+//            }
+//            catch (Exception e)
+//            {
+//                Toast toast = Toast.makeText(this, "Unable to complete transmission: " + e.getMessage(), Toast.LENGTH_LONG);
+//                toast.show();
+//            }
+//        }
+//
+//        DisplayMessage(message);
+//    }
 
 
     private byte[] Receive()
     {
+        return null;
         // blocking call until 8 bytes are received from the AMEDA
         // get the bytes, and return them.
 
-        if (!AMEDA.IsDeviced())
-        {
-            status_bar.setText("Unable to transmit - no AMEDA device selected");
-            return null;
-        }
-
-        if (!AMEDA.IsConnected())
-        {
-            AMEDA.Connect(this);
-        }
-
-        byte[] res = new byte [8];
-
-        boolean finished = false;
-        int counter = 0;
-
-        try
-        {
-            while (counter < 8)
-            {
-                int byteCount = AMEDA.istream.available();
-                if (byteCount > 0)
-                {
-                    int rawByte = AMEDA.istream.read();
-                    res[counter] = (byte) rawByte;
-                    counter ++;
-                }
-            }
-        }
-        catch (Exception e)
-        {
-
-        }
-
-        DisplayMessage(res);
-        return res;
+//        if (!AMEDA.IsDeviced())
+//        {
+//            status_bar.setText("Unable to transmit - no AMEDA device selected");
+//            return null;
+//        }
+//
+//        if (!AMEDA.IsConnected())
+//        {
+//            AMEDA.Connect(this);
+//        }
+//
+//        byte[] res = new byte [8];
+//
+//        boolean finished = false;
+//        int counter = 0;
+//
+//        try
+//        {
+//            while (counter < 8)
+//            {
+//                int byteCount = AMEDA.istream.available();
+//                if (byteCount > 0)
+//                {
+//                    int rawByte = AMEDA.istream.read();
+//                    res[counter] = (byte) rawByte;
+//                    counter ++;
+//                }
+//            }
+//        }
+//        catch (Exception e)
+//        {
+//
+//        }
+//
+//        DisplayMessage(res);
+//        return res;
     }
 
-    private void DisplayMessage(byte [] message)
+    private void DisplayMessage(String message)
     {
         // make sure that we are receiving the correct commands o transmit
         // purely for testing purposes.
 
-        String output = "";
-        for (int i = 0; i < 6; i ++)
-            output += (char)message[i];
-
-        output += ":" + Integer.toString(message[6]) + ":";
-        output += (char)message[7];
-
-        status_bar.setText(output);
+        status_bar.setText(message);
     }
 }
